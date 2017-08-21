@@ -14,6 +14,26 @@ configurations {
 }
 
 dependencies {
-	build 'io.github.http-builder-ng:http-builder-ng-okhttp:0.16.1'
+	build 'io.github.http-builder-ng:http-builder-ng-okhttp:0.17.0'
 }
 
+ext {
+	appendLine = { file, line ->
+		if (line.endsWith("\n")) {
+			line += "\r\n"
+		}
+		
+		if (!file.exists()) {
+			file.text = line
+		} else {
+			if (file.text.endsWith("\n")) {
+				file.append("\r\n")
+			}
+			file.append(line)
+		}
+	}
+	
+	fileTreeFiltered = { dir, config ->
+		fileTree(dir: dir, includes: config.includes, excludes: config.excludes).filter(config.filter)
+	}
+}
