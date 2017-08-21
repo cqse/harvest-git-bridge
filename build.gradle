@@ -21,7 +21,7 @@ ext {
 	tsProject = "my-project"
 
 	tsServer = new Expando(
-		url: "http://localhost:80",
+		url: "http://localhost:8080",
 		username: "admin",
 		password: "__TODO__"
 	)
@@ -51,7 +51,7 @@ task uploadPdb {
 		
 		def http = createHttpClient(tsServer)
 		def pdbs = fileTree(pdbPath) { include pdb.include }
-		pdbs.collate(8).each { pdbSlice ->
+		pdbs.collate(1).each { pdbSlice ->
 		    println http.post(String) {
 			    request.uri.path = "/p/${tsProject}/dotnet-debug-info-upload"
 			    request.contentType = 'multipart/form-data'
@@ -61,7 +61,6 @@ task uploadPdb {
 			    ]
 			    request.body = groovyx.net.http.MultipartContent.multipart {
 				    pdbSlice.each {
-					    field 'filename', it.name
 					    part 'file', it.name, 'text/plain', it
 				    }
 			    }
@@ -72,9 +71,12 @@ task uploadPdb {
 }
 
 task collectTraces {
-	ant.move(preservelastmodified: true, toDir: trace.inbox) {
-		fileset(dir: trace.share) {
-			include(name: "*.txt")
+	doLast {
+		ant.move(preservelastmodified: true, toDir: trace.inbox) {
+			// TODO skip 0 byte files
+			fileset(dir: trace.share) {
+				include(name: "*.txt")
+			}
 		}
 	}
 }
