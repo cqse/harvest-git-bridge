@@ -1,0 +1,3 @@
+# ensure also windows users can edit files w/o problems
+*		text=auto eol=crlf
+gradle/*	text=auto eol=input

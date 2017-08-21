@@ -1,0 +1,122 @@
+buildscript {
+	dependencies {
+		classpath fileTree("lib").include("**.jar")
+	}
+}
+
+repositories {
+	mavenCentral()
+	jcenter()
+}
+
+configurations {
+	build
+}
+
+dependencies {
+	build 'io.github.http-builder-ng:http-builder-ng-okhttp:0.16.1'
+}
+
+ext {
+	tsProject = "my-project"
+
+	tsServer = new Expando(
+		url: "http://localhost:80",
+		username: "admin",
+		password: "__TODO__"
+	)
+	
+	pdb = new Expando(
+		// TODO provide inbox mechanism
+		path: "D:/teamscale/tga/pdb",
+		include: "*.pdb"
+	)
+	
+	trace = [
+		share: "D:/teamscale/tga/trace/TBD-share",
+		inbox: "D:/teamscale/tga/trace/inbox",
+		archive: "D:/teamscale/tga/trace/archive",
+	]
+	
+	// TODO make dynamic
+	v = "4.8.0.99"
+}
+
+task uploadPdb {
+	doLast {
+		def pdbPath = "${pdb.path}/${v}"
+		def buildTimestamp = file("${pdbPath}/MyProject.pdb").lastModified() as long
+		
+		println "Uploading for timestamp $buildTimestamp"
+		
+		def http = createHttpClient(tsServer)
+		def pdbs = fileTree(pdbPath) { include pdb.include }
+		pdbs.collate(8).each { pdbSlice ->
+		    println http.post(String) {
+			    request.uri.path = "/p/${tsProject}/dotnet-debug-info-upload"
+			    request.contentType = 'multipart/form-data'
+			    request.uri.query = [
+				    t: buildTimestamp,
+				    version: v
+			    ]
+			    request.body = groovyx.net.http.MultipartContent.multipart {
+				    pdbSlice.each {
+					    field 'filename', it.name
+					    part 'file', it.name, 'text/plain', it
+				    }
+			    }
+			    request.encoder 'multipart/form-data', groovyx.net.http.OkHttpEncoders.&multipart
+		    }
+	        }
+	}
+}
+
+task collectTraces {
+	ant.move(preservelastmodified: true, toDir: trace.inbox) {
+		fileset(dir: trace.share) {
+			include(name: "*.txt")
+		}
+	}
+}
+
+task uploadTrace(dependsOn: collectTraces) {
+	doLast {
+		def http = createHttpClient(tsServer)
+		fileTree(trace.inbox).each { traceFile ->
+			// TODO sort by LM?
+			println "Uploading tracefile $traceFile for timestamp ${traceFile.lastModified()}"
+			
+			println http.post(String) {
+			    request.uri.path = "/p/${tsProject}/dotnet-ephemeral-trace-upload"
+			    request.contentType = 'multipart/form-data'
+			    request.uri.query = [
+				    t: traceFile.lastModified(),
+				    version: v,
+				    adjusttimestamp: true,
+				    message: "Manual Test (from trace ${traceFile.name})",
+				    partition: "Manual Test"
+			    ]
+			    request.body = groovyx.net.http.MultipartContent.multipart {
+				    part 'report', traceFile.name, 'text/plain', traceFile
+			    }
+			    request.encoder 'multipart/form-data', groovyx.net.http.OkHttpEncoders.&multipart
+		   	}
+			
+			ant.move(file: traceFile, todir: trace.archive)
+		}
+	
+	}
+}
+
+def createHttpClient(tsServer) {
+	return groovyx.net.http.OkHttpBuilder.configure {
+		request.uri = tsServer.url
+		//request.auth.basic tsServer.username, tsServer.password
+		request.headers['Authorization'] = "Basic " + "${tsServer.username}:${tsServer.password}".bytes.encodeBase64().toString()
+	}
+}
+
+task bootstrap(type: Copy) {
+	from configurations.build
+	into 'lib'
+}
