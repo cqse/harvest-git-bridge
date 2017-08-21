@@ -1,0 +1,19 @@
+buildscript {
+	dependencies {
+		classpath fileTree("$rootDir/lib").include("**.jar")
+	}
+}
+
+repositories {
+	mavenCentral()
+	jcenter()
+}
+
+configurations {
+	build
+}
+
+dependencies {
+	build 'io.github.http-builder-ng:http-builder-ng-okhttp:0.16.1'
+}
+
