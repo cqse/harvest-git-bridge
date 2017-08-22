@@ -1,0 +1,20 @@
+image: registry.cqse.eu/cqse/build-base
+
+stages:
+  - dist
+
+dist:
+  stage: dist
+  script:
+    - wget https://services.gradle.org/distributions/gradle-4.1-bin.zip
+    - unzip -d gradle gradle-4.1-bin.zip
+    - ./gradlew bootstrap
+  artifacts:
+    name: zip
+    paths:
+      - "*.gradle" 
+      - "*.bat"
+      - "gradle"
+      - "lib"
+      - "scripts"
+    
