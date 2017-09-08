@@ -6,12 +6,11 @@ stages:
 dist:
   stage: dist
   script:
-    - find | sed 's|[^/]*/|- |g'
     - ./gradlew -b gradle/bootstrap.gradle bootstrap
+    - rm -r .gradle gradle/.gradle
   artifacts:
-    name: zip
+    name: teamscale-gradle
     paths:
+      - "gradle"
       - "*.gradle" 
       - "*.bat"
-      - "*.sh"
-      - "gradle"
