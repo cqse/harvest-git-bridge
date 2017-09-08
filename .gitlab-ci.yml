@@ -6,6 +6,7 @@ stages:
 dist:
   stage: dist
   script:
+    - find | sed 's|[^/]*/|- |g'
     - ./gradlew -b gradle/bootstrap.gradle bootstrap
   artifacts:
     name: zip
