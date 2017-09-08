@@ -1,9 +1,9 @@
-apply from: "$rootDir/scripts/base.gradle"
+apply from: "$rootDir/gradle/base.gradle"
 
 // TODO find a way to general import buildscript deps...
 buildscript {
 	dependencies {
-		classpath fileTree("lib").include("**.jar")
+		classpath fileTree("$rootDir/gradle/lib").include("**.jar")
 	}
 }
 
@@ -328,9 +328,4 @@ def createHttpClient(teamscale) {
 			builder.readTimeout(teamscale.timeout.read, java.util.concurrent.TimeUnit.SECONDS);
 		}
 	}
-}
-
-task bootstrap(type: Copy) {
-	from configurations.build
-	into 'lib'
 }

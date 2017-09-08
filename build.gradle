@@ -1,4 +1,4 @@
-apply from: "$rootDir/scripts/tga.gradle"
+apply from: "$rootDir/gradle/tga.gradle"
 
 ext {
 	dataDir = "C:/Teamscale"

@@ -1,3 +1,5 @@
 # ensure also windows users can edit files w/o problems
 *		text=auto eol=crlf
 gradle/*	text=auto eol=input
+*.sh		text=auto eol=lf
+gradlew		text=auto eol=lf

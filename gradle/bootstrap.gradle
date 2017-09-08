@@ -1,0 +1,26 @@
+/**
+ * Not meant for inclusion, bootstraps the gradle environment.
+ * Call with ./gradlew -b gradle/bootstrap.gradle bootstrap
+ */
+
+repositories {
+	mavenCentral()
+	jcenter()
+}
+
+configurations {
+	build
+}
+
+dependencies {
+	build 'io.github.http-builder-ng:http-builder-ng-okhttp:0.17.0'
+}
+
+task bootstrap(type: Copy) {
+	from configurations.build
+	into "lib"
+}
+
+task wrapper(type: Wrapper) {
+	gradleVersion = '4.1'
+}
