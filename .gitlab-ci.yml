@@ -7,7 +7,7 @@ dist:
   stage: dist
   script:
     - ./gradlew -b gradle/bootstrap.gradle bootstrap
-    - rm -r .gradle gradle/.gradle
+    - rm -r .gradle gradle/.gradle .git
   artifacts:
     name: teamscale-gradle
     paths:
