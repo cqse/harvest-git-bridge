@@ -12,5 +12,7 @@ dist:
     name: teamscale-gradle
     paths:
       - "gradle"
+      - "gradlew"
+      - "wrapper"
       - "*.gradle" 
       - "*.bat"
