@@ -1,4 +1,4 @@
-.gradle/
-gradle/dist
-gradle/lib
-wrapper/
+/.gradle/
+/gradle/dist
+/gradle/lib
+/wrapper/

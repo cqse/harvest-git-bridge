@@ -6,7 +6,7 @@ stages:
 dist:
   stage: dist
   script:
-    - ./gradlew -b gradle/bootstrap.gradle
+    - ./gradlew -b gradle/bootstrap.gradle bootstrap
   artifacts:
     name: zip
     paths:
