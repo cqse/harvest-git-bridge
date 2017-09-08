@@ -3,3 +3,4 @@
 gradle/*	text=auto eol=input
 *.sh		text=auto eol=lf
 gradlew		text=auto eol=lf
+*.jar		binary
