@@ -1,5 +1,8 @@
 image: registry.cqse.eu/cqse/build-base
 
+variables:
+  GRADLE_OPTS: -Dorg.gradle.daemon=false
+
 stages:
   - dist
   
