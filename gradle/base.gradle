@@ -23,4 +23,27 @@ ext {
 	fileTreeFiltered = { dir, config ->
 		fileTree(dir: dir, includes: config.includes, excludes: config.excludes).filter(config.filter)
 	}
+	
+	// runs a shell command and returns its stdout. Default working dir is the dir of the build script
+	shell = { Map options = [:], commandLine ->
+		def environment = options["environment"] ?: [:]
+		def workingDir = options["workingDir"] ?: new File(".").absolutePath
+		println "executing $commandLine in $workingDir"
+		def builder = new ProcessBuilder(commandLine as String[]).inheritIO().redirectOutput(ProcessBuilder.Redirect.PIPE).directory(new File(workingDir))
+		def builderEnvironment = builder.environment();
+		environment.each { key, value ->
+			builderEnvironment[key as String] = value as String
+		}
+		def process = builder.start();
+		// read the input stream BEFORE waiting, otherwise we wait forever
+		// see http://stackoverflow.com/questions/5483830/process-waitfor-never-returns
+		def output = process.getInputStream().text
+		process.waitFor()
+
+		if (process.exitValue()) {
+			fail("Process failed with exit value " + process.exitValue(), "Original command line: $commandLine")
+		}
+
+		return output
+	}
 }

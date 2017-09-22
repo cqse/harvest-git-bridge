@@ -12,6 +12,6 @@ dist:
     - ./gradlew -b gradle/bootstrap.gradle bootstrap
     - rm -r .gradle gradle/.gradle .git
   artifacts:
-    name: teamscale-gradle
+    name: harvest-gitbridge
     paths:
       - "*"

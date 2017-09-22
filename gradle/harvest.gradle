@@ -1,0 +1,81 @@
+apply from: "$rootDir/gradle/base.gradle"
+
+// TODO find a way to general import buildscript deps...
+buildscript {
+	dependencies {
+		classpath fileTree("$rootDir/gradle/lib").include("**.jar")
+	}
+}
+
+///////  Configuration
+
+ext {
+	// The Harvest server configuration
+	harvest = [
+		// The harvest broker name.
+		broker: null,
+		
+		// The harvest project name.
+		project: null,
+		
+		// The harvest viewpath.
+		viewpath: null
+	]
+	
+	// The git bridge configuration, override in used project
+	gitbridge = [
+		// The store that holds meta data about harvest, e.g. the last fetched date and version.
+		data: [
+			// The store location. Must be set in implementing project.
+			dir: null
+		],
+		
+		// The start point for history retrieval.
+		baseline: 0
+	]
+}
+
+///////  Updating the Git repository
+
+/**
+ * Returns the array to execute the given harvest CLI command
+ */
+def getHarvestCommand(tool) {
+	return [tool, "-b", harvest.broker, "-en", harvest.project, "-vp", harvest.viewpath, "-prompt"]
+}
+
+/**
+ * Fetches version information using the hsv command
+ */
+def fetchVersions = { Map options = [:], lastFetch ->
+	def command = getHarvestCommand("hsv")
+	if (options["user"]) {
+		command += ["-usr", options["user"], "-pw", options["password"]]
+	} else {
+		command += ["-prompt"]
+	}
+	def from = "03/14/95"
+	def to = "10/26/97"
+	command += ["-id", "sd", from, to]
+	return shell(command)
+}
+
+task updateGit {
+	doLast {
+		assert file(gitbridge.data.dir).exists()
+		assert harvest.broker != null
+		
+		def versionsFile = file("${gitbridge.data.dir}/versions.txt")
+		def versions = (versionsFile.exists() ? versionsFile.readLines() : []) as Set
+		
+		def timestampFile = file("${gitbridge.data.dir}/timestamp.txt")
+		def lastFetch = (timestampFile.exists() ? timestampFile.readLines()[0] : gitbridge.baseline)
+		def currentFetch = System.currentTimeMillis();	
+		
+		println fetchVersions(lastFetch)
+		
+		versionsFile.append "${version}\r\n"
+		timestampFile.write(currentFetch)
+	}
+}
+

@@ -1,40 +1,10 @@
-apply from: "$rootDir/gradle/tga.gradle"
+apply from: "$rootDir/gradle/harvest.gradle"
 
 ext {
-	dataDir = "C:/Teamscale"
-
-	teamscale.url = "http://localhost:8080"
-	teamscale.project = "my-project"
-	teamscale.password = "__TODO__"
+	harvest.broker   = "__TODO__"
+	harvest.project  = "__TODO__"
+	harvest.viewpath = "__TODO__"
 	
-	tga.pdb.store.dir = "$dataDir/tga/pdb"
-	
-	// The PDB file that is used to calculate the timestamp the PDB correlate to the code (approximation) 
-	tga.pdb.timestampFile = "MyAssembly.pdb"
-	
-	// The directory where build results are stored
-	tga.pdb.inbox.dir = /\\file-server\builds\MyBuild/
-
-	// E.g. extract version from build directory by stripping a prefix 	
-	tga.pdb.inbox.version = { dir ->
-		dir.name - "MyBuild_"
-	}
-
-	// E.g. filter PDB files smaller than 20MB 
-	tga.pdb.inbox.filter = { file -> 
-		file.size() < 20 * 1024 * 1024
-	}
-	
-	// E.g. require that an ISO file has been created, otherwise build failed
-	tga.pdb.inbox.require = { dir ->
-		fileTree("$dir/ISO").include("**.iso").any() 
-	}
-	
-	tga.trace.inbox.dir = "$dataDir/share/traces"
-	tga.trace.store.dir = "$dataDir/tga/trace/store"
-	tga.trace.store.versionAssembly = "MyAssembly"
-	tga.trace.archive.dir = "$dataDir/tga/trace/archive"
-
-	// Do not upload to Teamscale (debugging)
-	// dryRun = true
+	gitbridge.data.dir = "/Users/goeb/temp"
+	gitbridge.baseline = 0
 }
