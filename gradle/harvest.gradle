@@ -1,5 +1,9 @@
 apply from: "$rootDir/gradle/base.gradle"
 
+import com.xlson.groovycsv.CsvParser
+import java.time.*
+import java.time.format.DateTimeFormatter
+
 // TODO find a way to general import buildscript deps...
 buildscript {
 	dependencies {
@@ -33,6 +37,10 @@ ext {
 		// The start point for history retrieval.
 		baseline: 0
 	]
+
+	formats = [
+		US_DATE: DateTimeFormatter.ofPattern("MM/dd/yy")
+	]
 }
 
 ///////  Updating the Git repository
@@ -41,21 +49,24 @@ ext {
  * Returns the array to execute the given harvest CLI command
  */
 def getHarvestCommand(tool) {
-	return [tool, "-b", harvest.broker, "-en", harvest.project, "-vp", harvest.viewpath, "-prompt"]
+	return [tool, "-b", harvest.broker, "-en", harvest.project, "-vp", harvest.viewpath]
 }
 
 /**
  * Fetches version information using the hsv command
  */
-def fetchVersions = { Map options = [:], lastFetch ->
+def fetchVersions = { lastFetch, currentFetch ->
 	def command = getHarvestCommand("hsv")
-	if (options["user"]) {
-		command += ["-usr", options["user"], "-pw", options["password"]]
+	if (harvest.user) {
+		command += ["-usr", harvest.user]
+	} 
+	if (harvest.password) {
+		command += ["-pw", harvest.password]
 	} else {
 		command += ["-prompt"]
 	}
-	def from = "03/14/95"
-	def to = "10/26/97"
+	def from = LocalDateTime.ofEpochSecond(lastFetch.intdiv(1000), 1000 * (lastFetch % 1000) as Integer, ZoneOffset.UTC).format(formats.US_DATE)
+	def to = LocalDateTime.ofEpochSecond(currentFetch.intdiv(1000), 1000 * (currentFetch % 1000) as Integer, ZoneOffset.UTC).format(formats.US_DATE)
 	command += ["-id", "sd", from, to]
 	return shell(command)
 }
@@ -69,13 +80,18 @@ task updateGit {
 		def versions = (versionsFile.exists() ? versionsFile.readLines() : []) as Set
 		
 		def timestampFile = file("${gitbridge.data.dir}/timestamp.txt")
-		def lastFetch = (timestampFile.exists() ? timestampFile.readLines()[0] : gitbridge.baseline)
+		def lastFetch = Long.valueOf(timestampFile.exists() ? timestampFile.readLines()[0] : gitbridge.baseline)
 		def currentFetch = System.currentTimeMillis();	
 		
-		println fetchVersions(lastFetch)
-		
+		def hsvOutput = fetchVersions(lastFetch, currentFetch)
+
+		def csvc = CsvParser.parseCsv( hsvOutput, separator: '\t' )
+		for(line in csvc) {
+			println "$line.Name"
+		}
+
 		versionsFile.append "${version}\r\n"
-		timestampFile.write(currentFetch)
+		timestampFile.write "${currentFetch}"
 	}
 }
 

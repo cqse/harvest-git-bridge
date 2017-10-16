@@ -12,6 +12,10 @@ configurations {
 	build
 }
 
+dependencies {
+	build 'com.xlson.groovycsv:groovycsv:1.2'
+}
+
 task bootstrap(type: Copy) {
 	from configurations.build
 	into "lib"
