@@ -4,7 +4,9 @@ ext {
 	harvest.broker   = "__TODO__"
 	harvest.project  = "__TODO__"
 	harvest.viewpath = "__TODO__"
+	harvest.state    = "__TODO__"
 	
-	gitbridge.data.dir = "/Users/goeb/temp"
+	gitbridge.datadir = "__TODO__"
+	gitbridge.gitroot = "__TODO__"
 	gitbridge.baseline = 0
 }

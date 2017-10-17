@@ -23,75 +23,134 @@ ext {
 		project: null,
 		
 		// The harvest viewpath.
-		viewpath: null
+		viewpath: null,
+
+		// The harvest state.
+		state: null
 	]
 	
 	// The git bridge configuration, override in used project
 	gitbridge = [
 		// The store that holds meta data about harvest, e.g. the last fetched date and version.
-		data: [
-			// The store location. Must be set in implementing project.
-			dir: null
-		],
+		datadir: null,
 		
+		// The root directory of the git repository.
+		gitroot: null,
+
 		// The start point for history retrieval.
 		baseline: 0
 	]
 
 	formats = [
-		US_DATE: DateTimeFormatter.ofPattern("MM/dd/yy")
+		US_DATE: DateTimeFormatter.ofPattern("MM/dd/yy"),
+		HARVEST: DateTimeFormatter.ofPattern("MM-dd-yyyy;HH:mm:ss"),
+		GIT_COMMIT: DateTimeFormatter.ofPattern("MM/dd/yyyy'T'HH:mm:ss")
 	]
 }
 
 ///////  Updating the Git repository
 
 /**
- * Returns the array to execute the given harvest CLI command
+ * Returns the array to execute the given harvest CLI command. Handles login based on the configured harvest options.
  */
-def getHarvestCommand(tool) {
-	return [tool, "-b", harvest.broker, "-en", harvest.project, "-vp", harvest.viewpath]
-}
-
-/**
- * Fetches version information using the hsv command
- */
-def fetchVersions = { lastFetch, currentFetch ->
-	def command = getHarvestCommand("hsv")
-	if (harvest.user) {
-		command += ["-usr", harvest.user]
+def getHarvestCommand = { tool ->
+	def command = [tool, "-b", harvest.broker, "-en", harvest.project, "-vp", harvest.viewpath]
+	if (harvest.state) {
+		command += ["-st", harvest.state]
 	} 
-	if (harvest.password) {
+	if (harvest.user && harvest.password) {
+		command += ["-usr", harvest.user]
 		command += ["-pw", harvest.password]
 	} else {
 		command += ["-prompt"]
 	}
+	return command
+}
+
+/** Checks out the given version of the given file from Harvest. */
+def checkoutVersion = { file, version ->
+	def command = getHarvestCommand("hco")
+	command += [ "-s", file, "-vn", version, "-o", gitbridge.gitroot]
+	shell(command)
+}
+
+/**
+ * Fetches version information using the hsv command. Returns the result as a string.
+ */
+def fetchVersions = { lastFetch, currentFetch ->
+	def command = getHarvestCommand("hsv")
 	def from = LocalDateTime.ofEpochSecond(lastFetch.intdiv(1000), 1000 * (lastFetch % 1000) as Integer, ZoneOffset.UTC).format(formats.US_DATE)
 	def to = LocalDateTime.ofEpochSecond(currentFetch.intdiv(1000), 1000 * (currentFetch % 1000) as Integer, ZoneOffset.UTC).format(formats.US_DATE)
 	command += ["-id", "sd", from, to]
 	return shell(command)
 }
 
+/** Converts the given time string from Harvest's hsv output format to git commit format. */
+def convertTimestamp = {
+	return LocalDateTime.parse(it, formats.HARVEST).format(formats.GIT_COMMIT)
+}
+
+/** 
+ * Stages all changes in gitbridge.gitroot and commits them with the given
+ * author, message, and commit time.
+ */
+def commit = { author, message, time ->
+	def options = [ environment: ["GIT_COMMITTER_DATE": time ], workingDir: gitbridge.gitroot ]
+	println shell(options, ["git", "add", "."])
+	println shell(options, ["git", "commit", "--allow-empty", "--date=$time", "--author=$author", "-m", message])
+}
+
+/**
+ * Main task. Checks Harvest for new changes, groups them into git commits and 
+ * applies them to the git repository.
+ */
 task updateGit {
 	doLast {
-		assert file(gitbridge.data.dir).exists()
 		assert harvest.broker != null
+		assert file(gitbridge.datadir).exists()
+		assert file(gitbridge.datadir).exists()
+
+		def authorMappingFile = file("${gitbridge.datadir}/authors.properties")
+		assert authorMappingFile.exists() && authorMappingFile.canRead()
+		def authorMapping = new Properties()
+		authorMapping.load(authorMappingFile.newReader())
 		
-		def versionsFile = file("${gitbridge.data.dir}/versions.txt")
-		def versions = (versionsFile.exists() ? versionsFile.readLines() : []) as Set
+		def commitsFile = file("${gitbridge.datadir}/processedCommits.txt")
+		def processedCommits = (commitsFile.exists() ? commitsFile.readLines() : []) as Set
 		
-		def timestampFile = file("${gitbridge.data.dir}/timestamp.txt")
+		def timestampFile = file("${gitbridge.datadir}/timestamp.txt")
 		def lastFetch = Long.valueOf(timestampFile.exists() ? timestampFile.readLines()[0] : gitbridge.baseline)
 		def currentFetch = System.currentTimeMillis();	
 		
 		def hsvOutput = fetchVersions(lastFetch, currentFetch)
 
-		def csvc = CsvParser.parseCsv( hsvOutput, separator: '\t' )
-		for(line in csvc) {
-			println "$line.Name"
-		}
+		// Contains (among others): Name, Path, Version, Package, Modifier, Modified
+		def changes = CsvParser.parseCsv( hsvOutput, separator: '\t' )
 
-		versionsFile.append "${version}\r\n"
+		// Ignore ones that we already have and group by author
+		changes = changes.findAll( { !processedCommits.contains(it.Modified) } )
+		
+		// group by time, package, and author
+		def groupedChanges = changes.groupBy{ [ time: it.Modified, package: it.Package, author: it.Modifier] }
+
+		// sort by parsed time
+		groupedChanges = groupedChanges.sort{ LocalDateTime.parse(it.key.time, formats.HARVEST) }
+
+		println "Found ${groupedChanges.size()} unprocessed changes."
+
+		for(change in groupedChanges) {
+			def gitAuthor = authorMapping[change.key.author]
+			assert gitAuthor != null
+
+			for(fileEntry in change.value) {
+				checkoutVersion(fileEntry.Name, fileEntry.Version)
+			}
+			commit(gitAuthor, change.key.package, convertTimestamp(change.key.time))
+			commitsFile.append "${change.key.time}\r\n"
+		}
 		timestampFile.write "${currentFetch}"
+
+		println "Done."
 	}
 }
 

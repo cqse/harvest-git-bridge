@@ -13,5 +13,8 @@ Goal
 Usage
 -----
 
-* Open build.gradle and add your harvest details as well as a data directory and a baseline
-* 
+* Open env.bat and adjust your JAVA_HOME and GRADLE_HOME
+* Open build.gradle and add your harvest details as well as a data directory and a baseline (Java timestamp in Epoch milliseconds)
+* Create a file authors.properties in the data directory mapping from harvest user name to Git author string:
+```user=Full Name <user@domain.tld>``` - Make sure the file includes mappings for all Harvest users. The script will fail when processing the first change or an unknown user.
+* call update-git.bat manually or from a scheduled script

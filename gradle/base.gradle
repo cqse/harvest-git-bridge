@@ -5,23 +5,9 @@ buildscript {
 }
 
 ext {
-	appendLine = { file, line ->
-		if (line.endsWith("\n")) {
-			line += "\r\n"
-		}
-		
-		if (!file.exists()) {
-			file.text = line
-		} else {
-			if (file.text.endsWith("\n")) {
-				file.append("\r\n")
-			}
-			file.append(line)
-		}
-	}
-	
-	fileTreeFiltered = { dir, config ->
-		fileTree(dir: dir, includes: config.includes, excludes: config.excludes).filter(config.filter)
+	fail = { message ->
+		println message
+		throw new GradleScriptException(message, null)
 	}
 	
 	// runs a shell command and returns its stdout. Default working dir is the dir of the build script
@@ -41,7 +27,7 @@ ext {
 		process.waitFor()
 
 		if (process.exitValue()) {
-			fail("Process failed with exit value " + process.exitValue(), "Original command line: $commandLine")
+			fail("Process failed with exit value ${process.exitValue()}, Original command line: $commandLine, output: $output")
 		}
 
 		return output
