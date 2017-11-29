@@ -35,14 +35,11 @@ ext {
 		datadir: null,
 		
 		// The root directory of the git repository.
-		gitroot: null,
-
-		// The start point for history retrieval.
-		baseline: 0
+		gitroot: null
 	]
 
 	formats = [
-		US_DATE: DateTimeFormatter.ofPattern("MM/dd/yy"),
+		US_DATE: DateTimeFormatter.ofPattern("MM/dd/yyyy"),
 		HARVEST: DateTimeFormatter.ofPattern("MM-dd-yyyy;HH:mm:ss"),
 		GIT_COMMIT: DateTimeFormatter.ofPattern("MM/dd/yyyy'T'HH:mm:ss")
 	]
@@ -69,20 +66,32 @@ def getHarvestCommand = { tool ->
 
 /** Checks out the given version of the given file from Harvest. */
 def checkoutVersion = { file, version ->
+	def options = [ workingDir: gitbridge.gitroot ]
 	def command = getHarvestCommand("hco")
-	command += [ "-s", file, "-vn", version, "-o", gitbridge.gitroot]
-	shell(command)
+	command += [ "-s", file, "-vn", version ]
+	shell(options, command)
 }
 
 /**
  * Fetches version information using the hsv command. Returns the result as a string.
  */
 def fetchVersions = { lastFetch, currentFetch ->
+	def options = [ workingDir: gitbridge.datadir ]
 	def command = getHarvestCommand("hsv")
 	def from = LocalDateTime.ofEpochSecond(lastFetch.intdiv(1000), 1000 * (lastFetch % 1000) as Integer, ZoneOffset.UTC).format(formats.US_DATE)
 	def to = LocalDateTime.ofEpochSecond(currentFetch.intdiv(1000), 1000 * (currentFetch % 1000) as Integer, ZoneOffset.UTC).format(formats.US_DATE)
-	command += ["-id", "sd", from, to]
-	return shell(command)
+	command += [ "-s", "*", "-iv", "av", "-id", "sd", from, to ]
+	shell(options, command)
+
+	def hsvOutputFile = file("${gitbridge.datadir}/hsv.log")
+	assert hsvOutputFile.exists()
+	def hsvOutputLines = hsvOutputFile.readLines()
+	assert hsvOutputLines.size() >= 4
+
+	hsvOutputFile.delete()
+	hsvOutputLines.remove(2)
+	hsvOutputLines.remove(0)
+	return hsvOutputLines.dropRight(2).join("\n")
 }
 
 /** Converts the given time string from Harvest's hsv output format to git commit format. */
@@ -108,7 +117,13 @@ task updateGit {
 	doLast {
 		assert harvest.broker != null
 		assert file(gitbridge.datadir).exists()
-		assert file(gitbridge.datadir).exists()
+		assert file(gitbridge.gitroot).exists()
+
+		def gitFolder = file("${gitbridge.gitroot}/.git")
+		if(!gitFolder.exists()) {
+			println "${gitbridge.gitroot} does not seem to be a Git repository. Initializing."
+			shell([workingDir: gitbridge.gitroot], ["git", "init"])
+		}
 
 		def authorMappingFile = file("${gitbridge.datadir}/authors.properties")
 		assert authorMappingFile.exists() && authorMappingFile.canRead()
@@ -119,15 +134,15 @@ task updateGit {
 		def processedCommits = (commitsFile.exists() ? commitsFile.readLines() : []) as Set
 		
 		def timestampFile = file("${gitbridge.datadir}/timestamp.txt")
-		def lastFetch = Long.valueOf(timestampFile.exists() ? timestampFile.readLines()[0] : gitbridge.baseline)
-		def currentFetch = System.currentTimeMillis();	
-		
+		def lastFetch = Long.valueOf(timestampFile.exists() ? timestampFile.readLines()[0] : 0)
+		def currentFetch = System.currentTimeMillis();
+
 		def hsvOutput = fetchVersions(lastFetch, currentFetch)
 
 		// Contains (among others): Name, Path, Version, Package, Modifier, Modified
 		def changes = CsvParser.parseCsv( hsvOutput, separator: '\t' )
 
-		// Ignore ones that we already have and group by author
+		// Ignore ones that we already have
 		changes = changes.findAll( { !processedCommits.contains(it.Modified) } )
 		
 		// group by time, package, and author
@@ -149,6 +164,7 @@ task updateGit {
 			commitsFile.append "${change.key.time}\r\n"
 		}
 		timestampFile.write "${currentFetch}"
+		hsvOutputFile.delete()
 
 		println "Done."
 	}

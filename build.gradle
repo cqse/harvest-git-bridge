@@ -5,8 +5,9 @@ ext {
 	harvest.project  = "__TODO__"
 	harvest.viewpath = "__TODO__"
 	harvest.state    = "__TODO__"
+	// harvest.user     = "__TODO__"
+	// harvest.password = "__TODO__"
 	
 	gitbridge.datadir = "__TODO__"
 	gitbridge.gitroot = "__TODO__"
-	gitbridge.baseline = 0
 }
