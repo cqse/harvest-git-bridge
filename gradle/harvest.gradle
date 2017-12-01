@@ -68,7 +68,7 @@ def getHarvestCommand = { tool ->
 def checkoutVersion = { file, version ->
 	def options = [ workingDir: gitbridge.gitroot ]
 	def command = getHarvestCommand("hco")
-	command += [ "-s", file, "-vn", version ]
+	command += [ "-s", "\"$file\"", "-vn", version ]
 	shell(options, command)
 }
 
@@ -106,7 +106,7 @@ def convertTimestamp = {
 def commit = { author, message, time ->
 	def options = [ environment: ["GIT_COMMITTER_DATE": time ], workingDir: gitbridge.gitroot ]
 	println shell(options, ["git", "add", "."])
-	println shell(options, ["git", "commit", "--allow-empty", "--date=$time", "--author=$author", "-m", message])
+	println shell(options, ["git", "commit", "--allow-empty", "--date=$time", "--author=\"$author\"", "-m", "\"$message\""])
 }
 
 /**
@@ -164,7 +164,6 @@ task updateGit {
 			commitsFile.append "${change.key.time}\r\n"
 		}
 		timestampFile.write "${currentFetch}"
-		hsvOutputFile.delete()
 
 		println "Done."
 	}
