@@ -24,10 +24,11 @@ ext {
 		// read the input stream BEFORE waiting, otherwise we wait forever
 		// see http://stackoverflow.com/questions/5483830/process-waitfor-never-returns
 		def output = process.getInputStream().text
+		def errors = process.getErrorStream().text
 		process.waitFor()
 
 		if (process.exitValue()) {
-			fail("Process failed with exit value ${process.exitValue()}, Original command line: $commandLine, output: $output")
+			fail("Process failed with exit value ${process.exitValue()}, Original command line: $commandLine, output: $output, errors: $errors")
 		}
 
 		return output
