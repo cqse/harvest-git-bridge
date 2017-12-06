@@ -51,7 +51,7 @@ ext {
  * Returns the array to execute the given harvest CLI command. Handles login based on the configured harvest options.
  */
 def getHarvestCommand = { tool ->
-	def command = [tool, "-b", harvest.broker, "-en", harvest.project, "-vp", harvest.viewpath]
+	def command = [ tool, "-b", harvest.broker, "-en", harvest.project, "-vp", harvest.viewpath, "-o", "${gitbridge.datadir}/${tool}.log" ]
 	if (harvest.state) {
 		command += ["-st", harvest.state]
 	} 
@@ -68,7 +68,7 @@ def getHarvestCommand = { tool ->
 def checkoutVersion = { file, version ->
 	def options = [ workingDir: gitbridge.gitroot ]
 	def command = getHarvestCommand("hco")
-	command += [ "-s", "\"$file\"", "-vn", version ]
+	command += [ "-s", "\"$file\"", "-vn", version, "-br" ]
 	shell(options, command)
 }
 
@@ -122,7 +122,14 @@ task updateGit {
 		def gitFolder = file("${gitbridge.gitroot}/.git")
 		if(!gitFolder.exists()) {
 			println "${gitbridge.gitroot} does not seem to be a Git repository. Initializing."
-			shell([workingDir: gitbridge.gitroot], ["git", "init"])
+
+			def options = [workingDir: gitbridge.gitroot]
+			shell(options, ["git", "init"])
+			shell(options, ["git", "config", "user.name", "CQSE Harvest Git Bridge"])
+			shell(options, ["git", "config", "user.email", "support@teamscale.com"])
+			file("${gitbridge.gitroot}/.gitignore").write "harvest.sig\n"
+			shell(options, ["git", "add", ".gitignore"])
+			shell(options, ["git", "commit", "-m", "Ignore Harvest Signatures"])
 		}
 
 		def authorMappingFile = file("${gitbridge.datadir}/authors.properties")
