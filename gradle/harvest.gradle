@@ -68,7 +68,7 @@ def getHarvestCommand = { tool ->
 def checkoutVersion = { file, version ->
 	def options = [ workingDir: gitbridge.gitroot ]
 	def command = getHarvestCommand("hco")
-	command += [ "-s", "\"$file\"", "-vn", version, "-br" ]
+	command += [ "-s", "\"$file\"", "-vn", version, "-br", "-r" ]
 	shell(options, command)
 }
 
