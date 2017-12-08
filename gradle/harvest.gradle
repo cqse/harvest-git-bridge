@@ -150,10 +150,10 @@ task updateGit {
 		def changes = CsvParser.parseCsv( hsvOutput, separator: '\t' )
 
 		// Ignore ones that we already have
-		changes = changes.findAll( { !processedCommits.contains(it.Modified) } )
+		changes = changes.findAll( { !processedCommits.contains(it.Modified.take(17) + "00") } )
 		
-		// group by time, package, and author
-		def groupedChanges = changes.groupBy{ [ time: it.Modified, package: it.Package, author: it.Modifier] }
+		// group by time (truncated to full minutes), package, and author
+		def groupedChanges = changes.groupBy{ [ time: it.Modified.take(17) + "00", package: it.Package, author: it.Modifier] }
 
 		// sort by parsed time
 		groupedChanges = groupedChanges.sort{ LocalDateTime.parse(it.key.time, formats.HARVEST) }
