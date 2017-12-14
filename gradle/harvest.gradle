@@ -79,7 +79,7 @@ def fetchVersions = { lastFetch, currentFetch ->
 	def options = [ workingDir: gitbridge.datadir ]
 	def command = getHarvestCommand("hsv")
 	def from = LocalDateTime.ofEpochSecond(lastFetch.intdiv(1000), 1000 * (lastFetch % 1000) as Integer, ZoneOffset.UTC).format(formats.US_DATE)
-	def to = LocalDateTime.ofEpochSecond(currentFetch.intdiv(1000), 1000 * (currentFetch % 1000) as Integer, ZoneOffset.UTC).format(formats.US_DATE)
+	def to = LocalDateTime.ofEpochSecond(currentFetch.intdiv(1000), 1000 * (currentFetch % 1000) as Integer, ZoneOffset.UTC).plusDays(1).format(formats.US_DATE)
 	command += [ "-s", "*", "-iv", "av", "-id", "sd", from, to ]
 	shell(options, command)
 
@@ -150,7 +150,7 @@ task updateGit {
 		def changes = CsvParser.parseCsv( hsvOutput, separator: '\t' )
 
 		// Ignore ones that we already have
-		changes = changes.findAll( { !processedCommits.contains(it.Modified.take(17) + "00") } )
+		changes = changes.findAll( { !processedCommits.contains(it.Modified) } )
 		
 		// group by time (truncated to full minutes), package, and author
 		def groupedChanges = changes.groupBy{ [ time: it.Modified.take(17) + "00", package: it.Package, author: it.Modifier] }
@@ -164,11 +164,14 @@ task updateGit {
 			def gitAuthor = authorMapping[change.key.author]
 			assert gitAuthor != null
 
-			for(fileEntry in change.value) {
+			def committedTimes = []
+
+			for(fileEntry in change.value.sort{ LocalDateTime.parse(it.Modified, formats.HARVEST) }) {
 				checkoutVersion(fileEntry.Name, fileEntry.Version)
+				committedTimes.add(fileEntry.Modified)
 			}
 			commit(gitAuthor, change.key.package, convertTimestamp(change.key.time))
-			commitsFile.append "${change.key.time}\r\n"
+			commitsFile.withWriterApennd { out -> committedTimes.each { out.println it } }
 		}
 		timestampFile.write "${currentFetch}"
 
