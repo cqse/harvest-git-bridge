@@ -68,7 +68,7 @@ def getHarvestCommand = { tool ->
 def checkoutVersion = { file, version ->
 	def options = [ workingDir: gitbridge.gitroot ]
 	def command = getHarvestCommand("hco")
-	command += [ "-s", "\"$file\"", "-vn", version, "-br", "-r" ]
+	command += [ "-s", "$file", "-vn", version, "-br", "-r" ]
 	shell(options, command)
 }
 
@@ -106,7 +106,7 @@ def convertTimestamp = {
 def commit = { author, message, time ->
 	def options = [ environment: ["GIT_COMMITTER_DATE": time ], workingDir: gitbridge.gitroot ]
 	println shell(options, ["git", "add", "."])
-	println shell(options, ["git", "commit", "--allow-empty", "--date=$time", "--author=\"$author\"", "-m", "\"$message\""])
+	println shell(options, ["git", "commit", "--allow-empty", "--date=$time", "--author=\"$author\"", "-m", "$message"])
 }
 
 /**
@@ -133,9 +133,12 @@ task updateGit {
 		}
 
 		def authorMappingFile = file("${gitbridge.datadir}/authors.properties")
-		assert authorMappingFile.exists() && authorMappingFile.canRead()
 		def authorMapping = new Properties()
-		authorMapping.load(authorMappingFile.newReader())
+		if(authorMappingFile.exists() && authorMappingFile.canRead()) {
+			authorMapping.load(authorMappingFile.newReader())
+		} else {
+			println "No author mapping file found. Using defaults."
+		}
 		
 		def commitsFile = file("${gitbridge.datadir}/processedCommits.txt")
 		def processedCommits = (commitsFile.exists() ? commitsFile.readLines() : []) as Set
@@ -162,16 +165,19 @@ task updateGit {
 
 		for(change in groupedChanges) {
 			def gitAuthor = authorMapping[change.key.author]
-			assert gitAuthor != null
+			if(gitAuthor == null) {
+				println "No author substitution found for ${change.key.author}. Using default."
+				gitAuthor = "${change.key.author} <nobody@nomail.com>"
+			}
 
-			def committedTimes = []
+			def committedTimes = [] as Set
 
 			for(fileEntry in change.value.sort{ LocalDateTime.parse(it.Modified, formats.HARVEST) }) {
 				checkoutVersion(fileEntry.Name, fileEntry.Version)
 				committedTimes.add(fileEntry.Modified)
 			}
 			commit(gitAuthor, change.key.package, convertTimestamp(change.key.time))
-			commitsFile.withWriterApennd { out -> committedTimes.each { out.println it } }
+			commitsFile.withWriterAppend { out -> committedTimes.toSorted().each { out.println it } }
 		}
 		timestampFile.write "${currentFetch}"
 
