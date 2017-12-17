@@ -110,6 +110,44 @@ def commit = { author, message, time ->
 }
 
 /**
+ * Initializes the git repository. Sets default committer and adds a .gitignore file
+ * that prevents harvest signature files from being added to the repository.
+ */
+def initRepository = {
+	println "${gitbridge.gitroot} does not seem to be a Git repository. Initializing."
+
+	def options = [ environment: ["GIT_COMMITTER_DATE": "01/01/1970'T'00:00:00" ], workingDir: gitbridge.gitroot ]
+	shell(options, ["git", "init"])
+	shell(options, ["git", "config", "user.name", "CQSE Harvest Git Bridge"])
+	shell(options, ["git", "config", "user.email", "nobody@nomail.com"])
+	file("${gitbridge.gitroot}/.gitignore").write "harvest.sig\n"
+	shell(options, ["git", "add", ".gitignore"])
+	shell(options, ["git", "commit", "--date=01/01/1970'T'00:00:00", "-m", "Ignore Harvest Signatures"])
+}
+
+/**
+ * Processes all file entries for a group of changes that belong to the same minute.
+ * Entries with the "D" tag are removed from the repository, for all other entries we
+ * checkout the provided version. The return value is a set of all individual change
+ * times that were processed.
+ */
+def processFileEntries = { entries ->
+	def committedTimes = [] as Set
+	for(fileEntry in entries.sort{ LocalDateTime.parse(it.Modified, formats.HARVEST) }) {
+		if(fileEntry.Tag == "D") {
+			new FileNameFinder().getFileNames(gitbridge.gitroot, "**/${fileEntry.Name}").each { 
+				println "Deleting $it"
+				file(it).delete() 
+			}
+		} else {
+			checkoutVersion(fileEntry.Name, fileEntry.Version)
+		}
+		committedTimes.add(fileEntry.Modified)
+	}
+	return committedTimes
+}
+
+/**
  * Main task. Checks Harvest for new changes, groups them into git commits and 
  * applies them to the git repository.
  */
@@ -121,15 +159,7 @@ task updateGit {
 
 		def gitFolder = file("${gitbridge.gitroot}/.git")
 		if(!gitFolder.exists()) {
-			println "${gitbridge.gitroot} does not seem to be a Git repository. Initializing."
-
-			def options = [workingDir: gitbridge.gitroot]
-			shell(options, ["git", "init"])
-			shell(options, ["git", "config", "user.name", "CQSE Harvest Git Bridge"])
-			shell(options, ["git", "config", "user.email", "support@teamscale.com"])
-			file("${gitbridge.gitroot}/.gitignore").write "harvest.sig\n"
-			shell(options, ["git", "add", ".gitignore"])
-			shell(options, ["git", "commit", "-m", "Ignore Harvest Signatures"])
+			initRepository();
 		}
 
 		def authorMappingFile = file("${gitbridge.datadir}/authors.properties")
@@ -170,12 +200,7 @@ task updateGit {
 				gitAuthor = "${change.key.author} <nobody@nomail.com>"
 			}
 
-			def committedTimes = [] as Set
-
-			for(fileEntry in change.value.sort{ LocalDateTime.parse(it.Modified, formats.HARVEST) }) {
-				checkoutVersion(fileEntry.Name, fileEntry.Version)
-				committedTimes.add(fileEntry.Modified)
-			}
+			def committedTimes = processFileEntries(change.value)
 			commit(gitAuthor, change.key.package, convertTimestamp(change.key.time))
 			commitsFile.withWriterAppend { out -> committedTimes.toSorted().each { out.println it } }
 		}
