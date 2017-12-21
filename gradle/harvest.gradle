@@ -51,7 +51,7 @@ ext {
  * Returns the array to execute the given harvest CLI command. Handles login based on the configured harvest options.
  */
 def getHarvestCommand = { tool ->
-	def command = [ tool, "-b", harvest.broker, "-en", harvest.project, "-vp", harvest.viewpath, "-o", "${gitbridge.datadir}/${tool}.log" ]
+	def command = [ tool, "-b", harvest.broker, "-en", harvest.project, "-o", "${gitbridge.datadir}/${tool}.log" ]
 	if (harvest.state) {
 		command += ["-st", harvest.state]
 	} 
@@ -65,10 +65,10 @@ def getHarvestCommand = { tool ->
 }
 
 /** Checks out the given version of the given file from Harvest. */
-def checkoutVersion = { file, version ->
+def checkoutVersion = { fileEntry ->
 	def options = [ workingDir: gitbridge.gitroot ]
 	def command = getHarvestCommand("hco")
-	command += [ "-s", "$file", "-vn", version, "-br", "-r" ]
+	command += [ "-vp", fileEntry.Path, "-cp", toLocalPath(fileEntry.Path), "-s", fileEntry.Name, "-vn", fileEntry.Version, "-br", "-r" ]
 	shell(options, command)
 }
 
@@ -80,15 +80,18 @@ def fetchVersions = { lastFetch, currentFetch ->
 	def command = getHarvestCommand("hsv")
 	def from = LocalDateTime.ofEpochSecond(lastFetch.intdiv(1000), 1000 * (lastFetch % 1000) as Integer, ZoneOffset.UTC).format(formats.US_DATE)
 	def to = LocalDateTime.ofEpochSecond(currentFetch.intdiv(1000), 1000 * (currentFetch % 1000) as Integer, ZoneOffset.UTC).plusDays(1).format(formats.US_DATE)
-	command += [ "-s", "*", "-iv", "av", "-id", "sd", from, to ]
+	command += [ "-vp", harvest.viewpath, "-s", "*", "-iv", "av", "-id", "sd", from, to]
 	shell(options, command)
 
 	def hsvOutputFile = file("${gitbridge.datadir}/hsv.log")
 	assert hsvOutputFile.exists()
 	def hsvOutputLines = hsvOutputFile.readLines()
-	assert hsvOutputLines.size() >= 4
-
 	hsvOutputFile.delete()
+	
+	if (hsvOutputLines.size() < 4) {
+		return ""
+	}
+
 	hsvOutputLines.remove(2)
 	hsvOutputLines.remove(0)
 	return hsvOutputLines.dropRight(2).join("\n")
@@ -106,7 +109,7 @@ def convertTimestamp = {
 def commit = { author, message, time ->
 	def options = [ environment: ["GIT_COMMITTER_DATE": time ], workingDir: gitbridge.gitroot ]
 	println shell(options, ["git", "add", "."])
-	println shell(options, ["git", "commit", "--allow-empty", "--date=$time", "--author=\"$author\"", "-m", "$message"])
+	println shell(options, ["git", "commit", "--allow-empty", "--date=$time", "--author=\"$author\"", "-m", message])
 }
 
 /**
@@ -116,13 +119,19 @@ def commit = { author, message, time ->
 def initRepository = {
 	println "${gitbridge.gitroot} does not seem to be a Git repository. Initializing."
 
-	def options = [ environment: ["GIT_COMMITTER_DATE": "01/01/1970'T'00:00:00" ], workingDir: gitbridge.gitroot ]
+	def options = [ environment: ["GIT_COMMITTER_DATE": "01/01/2015'T'00:00:00" ], workingDir: gitbridge.gitroot ]
 	shell(options, ["git", "init"])
 	shell(options, ["git", "config", "user.name", "CQSE Harvest Git Bridge"])
 	shell(options, ["git", "config", "user.email", "nobody@nomail.com"])
 	file("${gitbridge.gitroot}/.gitignore").write "harvest.sig\n"
 	shell(options, ["git", "add", ".gitignore"])
-	shell(options, ["git", "commit", "--date=01/01/1970'T'00:00:00", "-m", "Ignore Harvest Signatures"])
+	shell(options, ["git", "commit", "--date=01/01/2015'T'00:00:00", "-m", "Ignore Harvest Signatures"])
+}
+
+/** Converts Harvest viewpath to platform-specific local path. */
+def toLocalPath = { viewpath ->
+	def result = viewpath.replace("\\" + harvest.viewpath, gitbridge.gitroot)
+	return result.replaceAll("[\\/]", File.separator)
 }
 
 /**
@@ -132,19 +141,20 @@ def initRepository = {
  * times that were processed.
  */
 def processFileEntries = { entries ->
-	def committedTimes = [] as Set
+	def processedTimes = [] as Set
 	for(fileEntry in entries.sort{ LocalDateTime.parse(it.Modified, formats.HARVEST) }) {
-		if(fileEntry.Tag == "D") {
-			new FileNameFinder().getFileNames(gitbridge.gitroot, "**/${fileEntry.Name}").each { 
-				println "Deleting $it"
-				file(it).delete() 
-			}
-		} else {
-			checkoutVersion(fileEntry.Name, fileEntry.Version)
+		switch(fileEntry.Tag) {
+			case "D":
+				file(toLocalPath(fileEntry.Path)).delete()
+				break
+			case "N":
+				checkoutVersion(fileEntry)
+				break
 		}
-		committedTimes.add(fileEntry.Modified)
+		// In any case, mark the change as processed
+		processedTimes.add(fileEntry.Modified)
 	}
-	return committedTimes
+	return processedTimes
 }
 
 /**
@@ -180,13 +190,13 @@ task updateGit {
 		def hsvOutput = fetchVersions(lastFetch, currentFetch)
 
 		// Contains (among others): Name, Path, Version, Package, Modifier, Modified
-		def changes = CsvParser.parseCsv( hsvOutput, separator: '\t' )
+		def changes = CsvParser.parseCsv( hsvOutput, separator: '\t', escapeChar: '\0' )
 
-		// Ignore ones that we already have
-		changes = changes.findAll( { !processedCommits.contains(it.Modified) } )
-		
-		// group by time (truncated to full minutes), package, and author
-		def groupedChanges = changes.groupBy{ [ time: it.Modified.take(17) + "00", package: it.Package, author: it.Modifier] }
+        // Ignore ones that we already have
+        changes = changes.findAll( { !processedCommits.contains(it.Modified) } )
+        
+        // group by time (truncated to full minutes), package, and author
+        def groupedChanges = changes.groupBy{ [ time: it.Modified.take(17) + "00", package: it.Package, author: it.Modifier] }
 
 		// sort by parsed time
 		groupedChanges = groupedChanges.sort{ LocalDateTime.parse(it.key.time, formats.HARVEST) }
@@ -196,13 +206,12 @@ task updateGit {
 		for(change in groupedChanges) {
 			def gitAuthor = authorMapping[change.key.author]
 			if(gitAuthor == null) {
-				println "No author substitution found for ${change.key.author}. Using default."
-				gitAuthor = "${change.key.author} <nobody@nomail.com>"
+				gitAuthor = "${change.key.author} <${change.key.author}@nomail>"
 			}
 
-			def committedTimes = processFileEntries(change.value)
+			def processedTimes = processFileEntries(change.value)
 			commit(gitAuthor, change.key.package, convertTimestamp(change.key.time))
-			commitsFile.withWriterAppend { out -> committedTimes.toSorted().each { out.println it } }
+			commitsFile.withWriterAppend { out -> processedTimes.toSorted().each { out.println it } }
 		}
 		timestampFile.write "${currentFetch}"
 
