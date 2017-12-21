@@ -47,6 +47,12 @@ ext {
 
 ///////  Updating the Git repository
 
+/** Converts Harvest viewpath to platform-specific local path. */
+def toLocalPath = { viewpath ->
+	def result = viewpath.replace("\\" + harvest.viewpath, gitbridge.gitroot)
+	return result.replaceAll("[\\\\/]", File.separator)
+}
+
 /**
  * Returns the array to execute the given harvest CLI command. Handles login based on the configured harvest options.
  */
@@ -128,12 +134,6 @@ def initRepository = {
 	shell(options, ["git", "commit", "--date=01/01/2015'T'00:00:00", "-m", "Ignore Harvest Signatures"])
 }
 
-/** Converts Harvest viewpath to platform-specific local path. */
-def toLocalPath = { viewpath ->
-	def result = viewpath.replace("\\" + harvest.viewpath, gitbridge.gitroot)
-	return result.replaceAll("[\\/]", File.separator)
-}
-
 /**
  * Processes all file entries for a group of changes that belong to the same minute.
  * Entries with the "D" tag are removed from the repository, for all other entries we
@@ -145,7 +145,7 @@ def processFileEntries = { entries ->
 	for(fileEntry in entries.sort{ LocalDateTime.parse(it.Modified, formats.HARVEST) }) {
 		switch(fileEntry.Tag) {
 			case "D":
-				file(toLocalPath(fileEntry.Path)).delete()
+				file(toLocalPath(fileEntry.Path + "/" + fileEntry.Name)).delete()
 				break
 			case "N":
 				checkoutVersion(fileEntry)
@@ -192,13 +192,13 @@ task updateGit {
 		// Contains (among others): Name, Path, Version, Package, Modifier, Modified
 		def changes = CsvParser.parseCsv( hsvOutput, separator: '\t', escapeChar: '\0' )
 
-        // Ignore ones that we already have
-        changes = changes.findAll( { !processedCommits.contains(it.Modified) } )
-        
-        // group by time (truncated to full minutes), package, and author
-        def groupedChanges = changes.groupBy{ [ time: it.Modified.take(17) + "00", package: it.Package, author: it.Modifier] }
+		// Ignore the ones that we already have or that are not tagged D or N.
+		changes = changes.findAll( { (it.Tag == "N" || it.Tag == "D") && !processedCommits.contains(it.Modified) } )
 
-		// sort by parsed time
+		// group by time (truncated to full minutes), package, and author
+		def groupedChanges = changes.groupBy{ [ time: it.Modified.take(17) + "00", package: it.Package, author: it.Modifier] }
+
+		// sort by timestamp
 		groupedChanges = groupedChanges.sort{ LocalDateTime.parse(it.key.time, formats.HARVEST) }
 
 		println "Found ${groupedChanges.size()} unprocessed changes."
