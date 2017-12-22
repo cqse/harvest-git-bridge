@@ -50,7 +50,7 @@ ext {
 /** Converts Harvest viewpath to platform-specific local path. */
 def toLocalPath = { viewpath ->
 	def result = viewpath.replace("\\" + harvest.viewpath, gitbridge.gitroot)
-	return result.replaceAll("[\\\\/]", File.separator)
+	return result.replaceAll("[\\\\/]", Matcher.quoteReplacement(File.sep‌​arator))
 }
 
 /**
