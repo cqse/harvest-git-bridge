@@ -86,13 +86,17 @@ def fetchVersions = { lastFetch, currentFetch ->
 	def command = getHarvestCommand("hsv")
 	def from = LocalDateTime.ofEpochSecond(lastFetch.intdiv(1000), 1000 * (lastFetch % 1000) as Integer, ZoneOffset.UTC).format(formats.US_DATE)
 	def to = LocalDateTime.ofEpochSecond(currentFetch.intdiv(1000), 1000 * (currentFetch % 1000) as Integer, ZoneOffset.UTC).plusDays(1).format(formats.US_DATE)
+
+	def hsvOutputFile = file("${gitbridge.datadir}/hsv.log")
+	if(hsvOutputFile.exists()) {
+		hsvOutputFile.delete()
+	}
+
 	command += [ "-vp", harvest.viewpath, "-s", "*", "-iv", "av", "-id", "sd", from, to]
 	shell(options, command)
 
-	def hsvOutputFile = file("${gitbridge.datadir}/hsv.log")
 	assert hsvOutputFile.exists()
 	def hsvOutputLines = hsvOutputFile.readLines()
-	hsvOutputFile.delete()
 	
 	if (hsvOutputLines.size() < 4) {
 		return ""
