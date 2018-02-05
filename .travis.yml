@@ -1,0 +1,6 @@
+language: java
+install:
+  - ./gradlew -b gradle/bootstrap.gradle bootstrap
+script:
+  - rm -rf .gradle gradle/.gradle .git
+  - zip -r harvest-git-bridge.zip .
