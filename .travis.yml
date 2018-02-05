@@ -1,6 +1,13 @@
 language: java
 install:
-  - ./gradlew -b gradle/bootstrap.gradle bootstrap
+- "./gradlew -b gradle/bootstrap.gradle bootstrap"
 script:
-  - rm -rf .gradle gradle/.gradle .git
-  - zip -r harvest-git-bridge.zip .
+- rm -rf .gradle gradle/.gradle .git
+- zip -r harvest-git-bridge.zip .
+deploy:
+  provider: releases
+  api_key:
+    secure: iL8nIzi2cOfXnj6KMbzE1SaRohOb2rlWjIXj9WDvrDh0ZudP9vdaspncnAHC7VQbGEEIa6JwkYmW1fvjdpSU81UKXipF/rxV1DZmHhQxB41ZzWKu1BE4x/sqj5ureiNXm9kQw7wR+T6uMwl+dObeKCD29iQcDXKzAt9p/Axr/o9t9YUn5xYO6WFqHum2dsQTkHEVfhgeloXKL9XCUZhbQ3LVf39O+RZ9HMuvbzBmltFPxDISwen9J3O97ucFWb1w5j2jvcxuQC2O5KYGXubrn9QUP/sealnaEHTDFFmNh4dlQkGAb8QsIg5qblHnnre1iNirDpgNvHy8sKg/AtSfesC2e77FdJsz9jD48iojPe/bTaUHLs+ZMYx9mAa9j1UrqJJS1oqJcdPiyIllqqWwma5Riio/dd+Zx3epMZKMswJSmikT3KAGunTMplcchgZipulGSlz01I89ynRCd8lIvNQeu1q8nS7K940iBQMFV/lYYJeDTzI5JB98W0MfQ8489W7EQOvjkbXNPlERaR88RSUP7e4Crgw+6V53cUP8YV9bv7WQdwNZtrSy1fijQ1EXHO7RcJQOVUYsRC2TOXBSM6LkZJeDOQC1vGvJER0sw3HaOr4VLt2vVkn4YcqZd74FEp8WqBeQTlOe29/DP2xZCUTqxeSso0aBprxdDaUXLOQ=
+  file: harvest-git-bridge.zip
+  on:
+    repo: cqse/harvest-git-bridge
