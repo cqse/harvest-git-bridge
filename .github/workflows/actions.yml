@@ -24,7 +24,7 @@ jobs:
       if: startsWith(github.ref, 'refs/tags/v')
       run: |
         git describe --tags > VERSION.txt
-        rm -rf .gradle gradle/.gradle .git
+        rm -rf .gradle gradle/.gradle .git*
         zip -r harvest-git-bridge.zip .
     - name: Upload Release Assets
       if: startsWith(github.ref, 'refs/tags/v')
