@@ -1,5 +1,4 @@
 Harvest Git-Bridge
-[![Build Status](https://travis-ci.org/cqse/harvest-git-bridge.svg?branch=master)](https://travis-ci.org/cqse/harvest-git-bridge)
 ==================
 
 Gradle scripts for mirroring Harvest SCM code changes into a Git repository.
