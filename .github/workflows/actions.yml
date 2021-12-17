@@ -20,12 +20,14 @@ jobs:
     - name: Build with Gradle
       run: |
         ./gradlew -b gradle/bootstrap.gradle bootstrap
-    - name: Upload Release Assets
+    - name: Package Release Assets
       if: startsWith(github.ref, 'refs/tags/v')
       run: |
         git describe --tags > VERSION.txt
         rm -rf .gradle gradle/.gradle .git
         zip -r harvest-git-bridge.zip .
+    - name: Upload Release Assets
+      if: startsWith(github.ref, 'refs/tags/v')
       uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
